@@ -1,7 +1,7 @@
 import type { ChatModel } from "./llm/types.js";
 
 /**
- * Turns one source-code file into a short prose summary for the knowledge graph.
+ * Turns one source-code or Markdown file into a short prose summary for the knowledge graph.
  *
  * Code repos are deliberately NOT fed through the per-chunk entity extractor:
  * static structure is better served by grep/tree-sitter in the consuming agent,
@@ -14,9 +14,9 @@ export interface Summarizer {
   summarize(code: string, opts: { path: string }): Promise<string>;
 }
 
-const SYSTEM_PROMPT = `You document source code for a team knowledge base. Given one source file, write a compact plain-English summary covering:
+const SYSTEM_PROMPT = `You document source code and Markdown documentation for a team knowledge base. Given one repository file, write a compact plain-English summary covering:
 1. The purpose of the file — what it exists to do.
-2. The key exported functions/classes/types and what each is for.
+2. The key exported functions/classes/types, or documented concepts and decisions, and what each is for.
 3. Important dependencies: internal modules it builds on, external libraries or services it talks to.
 4. Notable design decisions, constraints, or gotchas evident in the code.
 

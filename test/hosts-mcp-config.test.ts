@@ -106,6 +106,22 @@ test('serverEntry prefers the installed binary and falls back to npx', () => {
   }
 });
 
+test('serverEntry detects a Windows graft.cmd shim on PATH', { skip: process.platform !== 'win32' }, () => {
+  const savedForce = process.env.GRAFT_MCP_NPX;
+  const savedPath = process.env.PATH;
+  const bin = fresh();
+  writeFileSync(join(bin, 'graft.cmd'), '@exit /b 0\r\n');
+  delete process.env.GRAFT_MCP_NPX;
+  process.env.PATH = `${bin};${savedPath ?? ''}`;
+  try {
+    assert.deepEqual(serverEntry(), { command: 'graft', args: ['mcp'] });
+  } finally {
+    process.env.PATH = savedPath;
+    if (savedForce !== undefined) process.env.GRAFT_MCP_NPX = savedForce;
+    else delete process.env.GRAFT_MCP_NPX;
+  }
+});
+
 test('GRAFT_MCP_NPX overrides an installed binary', () => {
   process.env.GRAFT_MCP_NPX = '1';
   assert.equal(serverEntry({ onPath: true }).command, 'npx', 'the escape hatch wins');

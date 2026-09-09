@@ -1,7 +1,7 @@
 /**
  * `checkGraph` — is the committed `graph.json` still in sync with the code?
  *
- * Deterministic and fast (tree-sitter only, no LLM, no network): it re-runs
+ * Deterministic and fast (local extraction only, no LLM, no network): it re-runs
  * Tier-1 extraction and diffs the fresh node set against the committed graph by
  * `id` and `body_hash`. Meant for CI — exit non-zero when a PR changed code but
  * didn't rebuild the graph.
@@ -23,6 +23,7 @@ import { contextDirFor } from "../context/node-file.js";
 import { extractFile, languageOf } from "./extract.js";
 import { extractGeneric, genericLangOf, warmGenericGrammars } from "./generic.js";
 import { containerLangOf, extractContainer, warmContainerGrammars } from "./container.js";
+import { extractMarkdown, isMarkdownFile } from "./markdown.js";
 import { listSourceFiles } from "./build.js";
 import { readGraph, wiringPath } from "./write.js";
 import { readFingerprint } from "./fingerprint.js";
@@ -99,13 +100,14 @@ export async function checkGraph(
   );
   const current = new Map<string, string>(); // id → body_hash
   for (const file of sourceFiles) {
-    // The same three-way branch `buildGraph` uses, in the same order. The two must
+    // The same extraction branch `buildGraph` uses, in the same order. The two must
     // stay in step: a tier the build extracts and the check cannot see reports as
     // `removed` forever, and the `graft build` the check tells you to run can never
     // repair it.
     const lang = languageOf(file);
-    const container = lang ? null : containerLangOf(file);
-    const generic = lang || container ? null : genericLangOf(file);
+    const markdown = !lang && isMarkdownFile(file);
+    const container = lang || markdown ? null : containerLangOf(file);
+    const generic = lang || markdown || container ? null : genericLangOf(file);
     let source: string | null;
     try {
       source = readSourceFile(file);
@@ -117,11 +119,13 @@ export async function checkGraph(
     try {
       const extracted = lang
         ? extractFile(rel, source, lang)
-        : container
-          ? extractContainer(rel, source, container)
-          : generic
-            ? extractGeneric(rel, source, generic.name)
-            : null;
+        : markdown
+          ? extractMarkdown(rel, source)
+          : container
+            ? extractContainer(rel, source, container)
+            : generic
+              ? extractGeneric(rel, source, generic.name)
+              : null;
       // No tier claims this file. Spelled out rather than asserted away: the
       // `generic!` that used to stand in this position threw a TypeError on a
       // container-tier file, the catch below swallowed it as a parse failure, and

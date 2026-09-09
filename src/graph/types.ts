@@ -1,5 +1,5 @@
 /**
- * `graph.json` — the code graph schema (v1).
+ * `graph.json` — the structural code/document graph schema (v1).
  *
  * One node per definition (file, class, function, method, interface, type, enum),
  * wired by edges (contains, imports, calls, ...). Field names follow the LSP
@@ -67,16 +67,18 @@ export interface NodeV1 {
   exported: boolean;
   // How the node was extracted. "ast" = a first-class hand-written extractor
   // (TS/JS/Python/Go, full-fidelity). "generic" = the tags.scm breadth tier
-  // (signature-only; symbols + bare edges, no scope-aware binding).
-  origin: "ast" | "generic";
+  // (signature-only; symbols + bare edges, no scope-aware binding). "markdown"
+  // emits document file nodes and local-link edges without pretending they are ASTs.
+  origin: "ast" | "generic" | "markdown";
   body_hash: string; // sha256 of the definition text; the Tier-2 re-run trigger
   chars?: number; // byte length of the WHOLE file (file nodes only); the baseline
   //                 `ask` uses to estimate tokens saved vs reading the file whole
-  body_text?: string; // searchable whitespace-normalized definition body (Tier-1,
-  //                 symbol nodes only, capped). Ranks `ask` queries so a term in
+  body_text?: string; // searchable whitespace-normalized definition/document body
+  //                 (Tier-1; code definitions are capped, Markdown is complete). Ranks `ask` queries so a term in
   //                 the code — not just the name/signature — is findable; never
   //                 emitted to the agent (that reads verbatim source via `--source`).
-  //                 Absent on file nodes and on graphs built before this field.
+  //                 Usually absent on file nodes except Markdown/module residuals,
+  //                 and absent on graphs built before this field.
   arity?: number; // declared parameter count (method/constructor nodes). Disambiguates
   //                 OVERLOADS, which only Java has among the languages parsed here: two
   //                 same-named methods on one class are otherwise separable only by

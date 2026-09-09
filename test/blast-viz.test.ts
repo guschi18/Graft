@@ -79,7 +79,7 @@ test("blast viz: one node per area, typed so the viewer colours and legends itse
   // would be the biggest node on the canvas.
   assert.ok(!g.nodes.some((n) => n.name === "Test Suites"), "test-only clusters are not drawn");
   assert.equal(g.meta.nodeCount, 3);
-  assert.equal(g.meta.skippedFiles, 1, "changed files no parser claims are carried, not hidden");
+  assert.equal(g.meta.skippedFiles, 1, "changed files no extractor claims are carried, not hidden");
 });
 
 test("blast viz: edges are the dependency, so the viewer's wording comes out right", () => {
@@ -216,7 +216,7 @@ test("blast viz: an empty radius says why, instead of publishing a blank canvas"
 
   const g = blastVizGraph(r);
   assert.equal(g.nodes.length, 0);
-  assert.match(g.meta.emptyNote ?? "", /no parser claims 2 changed files/);
+  assert.match(g.meta.emptyNote ?? "", /no extractor claims 2 changed files/);
   assert.match(g.meta.emptyNote ?? "", /\.github\/workflows\/x\.yml, package-lock\.json/);
 
   // A radius that exists needs no excuse — the note must not appear on a real page.

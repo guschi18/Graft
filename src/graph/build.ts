@@ -1,9 +1,9 @@
 /**
- * `graph` — build `.context/graph.json` from a code repository.
+ * `graph` — build `.context/graph.json` from a repository's code and Markdown.
  *
  * M1 pipeline (Tier-1 only, deterministic, no LLM):
- *   1. Walk the repo for TS/Python source files.
- *   2. Parse each with tree-sitter and emit one NodeV1 per definition.
+ *   1. Walk the repo for supported source and documentation files.
+ *   2. Extract each file and emit NodeV1 definitions/document nodes.
  *   3. Write a sorted graph.json.
  * Edges (M2) and LLM summary/crux (M3) layer onto this without changing it.
  *
@@ -20,6 +20,7 @@ import { contextDirFor, ensureGitignored, ensureSearchable } from "../context/no
 import { extractFile, languageLabelOf, languageOf, type RawEdge } from "./extract.js";
 import { extractGeneric, genericLangOf, warmGenericGrammars } from "./generic.js";
 import { containerLangOf, extractContainer, warmContainerGrammars } from "./container.js";
+import { extractMarkdown, isMarkdownFile } from "./markdown.js";
 import { contentHash } from "../util/id.js";
 import { relPosix } from "../util/paths.js";
 import { readSourceFile } from "../util/source.js";
@@ -208,12 +209,13 @@ export async function buildGraph(
     // Depth tier (hand-written, native grammar) if a language claims the file;
     // otherwise the breadth tier (generic tags.scm over a WASM grammar).
     const lang = languageOf(f.abs);
+    const markdown = !lang && isMarkdownFile(f.abs);
     // A container is neither tier: its wrapper grammar only locates the embedded
     // block, which then goes to the depth-tier extractor. Checked before the
     // breadth tier so a future grammar claiming .vue can't shadow it.
-    const container = lang ? null : containerLangOf(f.abs);
-    const generic = lang || container ? null : genericLangOf(f.abs);
-    const label = languageLabelOf(f.abs) ?? container?.name ?? generic?.name ?? "unknown";
+    const container = lang || markdown ? null : containerLangOf(f.abs);
+    const generic = lang || markdown || container ? null : genericLangOf(f.abs);
+    const label = languageLabelOf(f.abs) ?? (markdown ? "markdown" : container?.name ?? generic?.name ?? "unknown");
     const cached = priorExtract.files[rel];
 
     // Every file is read and hashed, every build — only the *parse* is memoized.
@@ -262,9 +264,11 @@ export async function buildGraph(
     try {
       const { nodes: fileNodes, rawEdges: fileEdges } = lang
         ? extractFile(rel, source, lang)
-        : container
-          ? extractContainer(rel, source, container)
-          : extractGeneric(rel, source, generic!.name);
+        : markdown
+          ? extractMarkdown(rel, source)
+          : container
+            ? extractContainer(rel, source, container)
+            : extractGeneric(rel, source, generic!.name);
       nodes.push(...fileNodes);
       rawEdges.push(...fileEdges);
       sources.set(rel, source);

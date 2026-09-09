@@ -401,7 +401,7 @@ function caveatLines(r: BlastReport): string[] {
   if (r.unindexed.length > 0) {
     out.push(
       `⚠️ ${plural(r.unindexed.length, "changed file")} not in the graph (${r.unindexed.slice(0, 5).join(", ")}) — ` +
-        "no parser claims the extension, or the index predates the file.",
+        "no extractor claims the extension, or the index predates the file.",
     );
   }
   return out;

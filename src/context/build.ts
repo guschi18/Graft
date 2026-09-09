@@ -39,12 +39,13 @@ import {
   type SourceRef,
 } from "./node-file.js";
 
-/** Extensions treated as source code. */
+/** Extensions treated as repository sources by the concept pass. */
 export const CODE_EXTENSIONS = [
   ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
   ".py", ".go", ".rs", ".java", ".kt", ".scala",
   ".rb", ".php", ".c", ".h", ".cpp", ".hpp", ".cc",
   ".cs", ".swift", ".sql", ".sh", ".proto",
+  ".md", ".markdown",
 ];
 
 /** Char budget of summary text per synthesis call (keeps each call in-context). */
@@ -60,7 +61,7 @@ export interface BuildProgress {
 export interface BuildOptions {
   /** Override the output dir (default: `<root>/.context`). */
   contextDir?: string;
-  /** Extensions to treat as code. Default: {@link CODE_EXTENSIONS}. */
+  /** Extensions to treat as repository sources. Default: {@link CODE_EXTENSIONS}. */
   extensions?: string[];
   /** Repo-relative directory prefixes to limit the concept pass (`--only-dir`).
    * Same prefix semantics as the wiring walk. When omitted, falls back to the

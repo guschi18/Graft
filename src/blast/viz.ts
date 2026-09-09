@@ -144,14 +144,14 @@ function affectedNode(
  * A PR that only touches lockfiles, workflows or docs has no radius, and the page
  * published for it used to be a blank canvas behind a link promising a graph — a
  * reader cannot tell that from a broken export. Naming the reason (usually: no
- * parser claims these files) turns it into an answer.
+ * extractor claims these files) turns it into an answer.
  */
 function emptyNote(r: BlastReport): string {
   if (r.changed.length === 0) return "This pull request changes no files.";
   if (r.unindexed.length === r.changed.length) {
     const shown = r.unindexed.slice(0, 3).join(", ");
     const rest = r.unindexed.length > 3 ? `, +${r.unindexed.length - 3} more` : "";
-    return `Nothing to draw: no parser claims ${plural(r.unindexed.length, "changed file")} (${shown}${rest}), so this change has no symbols to trace.`;
+    return `Nothing to draw: no extractor claims ${plural(r.unindexed.length, "changed file")} (${shown}${rest}), so this change has no symbols to trace.`;
   }
   return "Nothing to draw: the changed symbols have no resolved dependents at this depth.";
 }
@@ -211,7 +211,7 @@ export function blastVizGraph(r: BlastReport, opts: { root?: string } = {}): Viz
       nodeCount: nodes.length,
       edgeCount: edges.length,
       emptyNote: nodes.length === 0 ? emptyNote(r) : undefined,
-      // Changed files no parser claims: named here so a thin graph is explained
+      // Changed files no extractor claims: named here so a thin graph is explained
       // rather than read as "this PR is safe".
       skippedFiles: r.unindexed.length,
       droppedEdges: 0,

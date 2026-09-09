@@ -114,7 +114,9 @@ function renderCard(
     const tail = desc ? ` — ${desc}` : "";
     lines.push(`- ${n.name} · ${n.kind} · ${n.span}${tail}`);
   }
-  if (sorted.length === 0) lines.push("_No extracted symbols in this file._");
+  if (sorted.length === 0 && fileNode?.origin !== "markdown") {
+    lines.push("_No extracted symbols in this file._");
+  }
   return lines.join("\n") + "\n";
 }
 
