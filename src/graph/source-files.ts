@@ -14,11 +14,12 @@ import { readFollowNestedRepos, readFollowSubmodules, readIncludeDirs } from "..
 import { languageOf, depthExtensions } from "./extract.js";
 import { genericLangOf, genericExtensions } from "./generic.js";
 import { containerLangOf, containerExtensions } from "./container.js";
+import { isMarkdownFile, markdownExtensions } from "./markdown.js";
 
-/** Every extension graft has a parser for (depth + breadth + container), sorted
+/** Every extension Graft can structurally extract, sorted
  * and de-duped — the authoritative answer to "what does `-e` actually support". */
 export function supportedExtensions(): string[] {
-  return [...new Set([...depthExtensions(), ...genericExtensions(), ...containerExtensions()])].sort();
+  return [...new Set([...depthExtensions(), ...genericExtensions(), ...containerExtensions(), ...markdownExtensions()])].sort();
 }
 
 /** Normalize a user-supplied extension: ensure a leading dot, lower-case. */
@@ -28,7 +29,7 @@ function normExt(e: string): string {
 }
 
 /**
- * The subset of user-supplied `-e` extensions that no parser claims (depth or breadth).
+ * The subset of user-supplied `-e` extensions that no extractor claims.
  * `graft build -e ".vue"` used to accept these silently and index nothing; the CLI warns
  * on whatever this returns so an unsupported extension is never a quiet no-op.
  */
@@ -71,13 +72,13 @@ export function listSourceFiles(
   onlyDirs?: ReadonlySet<string>,
 ): string[] {
   // A file is a source file if a depth-tier grammar (languageOf), a breadth-tier
-  // grammar (genericLangOf) or a container (containerLangOf) claims its extension.
-  // All three must agree here or `build` and `check` would enumerate different sets.
+  // grammar (genericLangOf), a container (containerLangOf), or Markdown claims it.
+  // Every tier must agree here or `build` and `check` would enumerate different sets.
   return filterByOnlyDirs(
     repoFiles.filter(
       (f) =>
         !f.startsWith(outDir) &&
-        (languageOf(f) !== null || genericLangOf(f) !== null || containerLangOf(f) !== null),
+        (languageOf(f) !== null || genericLangOf(f) !== null || containerLangOf(f) !== null || isMarkdownFile(f)),
     ),
     root,
     onlyDirs,

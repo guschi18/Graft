@@ -47,7 +47,11 @@ const NPX_LAUNCH = { command: 'npx', args: ['-y', '@nanonets/graft', 'mcp'] };
 const BIN_LAUNCH = { command: 'graft', args: ['mcp'] };
 
 function graftOnPath(): boolean {
-  const r = spawnSync('graft', ['--version'], { stdio: 'ignore', timeout: 5000 });
+  // Node does not resolve Windows command shims (`graft.cmd`) when spawning the
+  // extensionless name directly. `where.exe` follows PATHEXT, as Codex/Claude do.
+  const r = process.platform === 'win32'
+    ? spawnSync('where.exe', ['graft'], { stdio: 'ignore', timeout: 5000 })
+    : spawnSync('graft', ['--version'], { stdio: 'ignore', timeout: 5000 });
   return r.status === 0;
 }
 

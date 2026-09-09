@@ -26,7 +26,7 @@ export { CODE_EXTENSIONS };
 export type { BuildResult, BuildProgress, CheckResult, GraphBuildResult, GraphCheckResult, AskResult };
 
 export interface InitOptions {
-  /** Code extensions to include. Default: {@link CODE_EXTENSIONS}. */
+  /** Repository-source extensions to include. Default: {@link CODE_EXTENSIONS}. */
   extensions?: string[];
   /** Repo-relative directory prefixes to limit the concept pass (`--only-dir`). */
   onlyDirs?: string[];

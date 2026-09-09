@@ -206,17 +206,19 @@ export function resolveEdges(
       add(e.source, e.targetId, "contains", "extracted");
     } else if (e.relation === "imports" && e.specifier) {
       const target =
-        hasGoModules && e.file.endsWith(".go")
-          ? resolveGoImport(e.specifier, opts.goModules!, goFilesByDir)
-          : e.file.endsWith(".java")
-            ? resolveJavaImport(e.specifier, javaFilesBySuffix)
-            : C_EXT.test(e.file)
-              ? resolveCInclude(e.specifier, e.file, byId, cFilesBySuffix)
-              : e.file.endsWith(".rs")
-                ? resolveRustUse(e.specifier, e.file, byId, rustCrateRoots)
-                : e.file.endsWith(".php")
-                  ? resolvePhpUse(e.specifier, phpFilesBySuffix)
-                  : resolveImport(e.specifier, e.file, byId);
+        /\.(?:md|markdown)$/i.test(e.file)
+          ? resolveMarkdownLink(e.specifier, e.file, byId)
+          : hasGoModules && e.file.endsWith(".go")
+            ? resolveGoImport(e.specifier, opts.goModules!, goFilesByDir)
+            : e.file.endsWith(".java")
+              ? resolveJavaImport(e.specifier, javaFilesBySuffix)
+              : C_EXT.test(e.file)
+                ? resolveCInclude(e.specifier, e.file, byId, cFilesBySuffix)
+                : e.file.endsWith(".rs")
+                  ? resolveRustUse(e.specifier, e.file, byId, rustCrateRoots)
+                  : e.file.endsWith(".php")
+                    ? resolvePhpUse(e.specifier, phpFilesBySuffix)
+                    : resolveImport(e.specifier, e.file, byId);
       add(e.source, target, "imports", "extracted");
     } else if (e.relation === "extends" || e.relation === "implements") {
       // `implements` also resolves to a `trait` — PHP models trait composition
@@ -504,6 +506,17 @@ function resolveImport(spec: string, file: string, byId: Map<string, NodeV1>): s
     ...IMPORT_EXTS.map((e) => `${noExt}/index${e}`),
   ];
   for (const c of candidates) if (byId.has(c)) return c;
+  return spec;
+}
+
+/** Resolve a Markdown link to a document/file node, including extensionless links. */
+function resolveMarkdownLink(spec: string, file: string, byId: Map<string, NodeV1>): string {
+  const base = spec.startsWith("/")
+    ? posix.normalize(spec.slice(1))
+    : posix.normalize(posix.join(posix.dirname(toPosixPath(file)), spec));
+  for (const candidate of [base, `${base}.md`, `${base}.markdown`, `${base}/README.md`]) {
+    if (byId.has(candidate)) return candidate;
+  }
   return spec;
 }
 

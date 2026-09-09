@@ -110,7 +110,7 @@ Graft builds that understanding **once** and writes it into your repo as a folde
 - **A real graph you can read.** No embeddings, no similarity search, no index to keep warm. The graph is a set of linked files your agent opens, greps, and follows, exactly the way it reads any other file in the repo.
 - **A local cache, not a committed artifact.** `graft build` writes `graft/` and adds it to `.gitignore` — it's a regenerable local cache, like `node_modules`. What you commit is the small wiring `graft init` drops in (`.claude/`, `AGENTS.md`, the MCP config); each teammate runs `graft build` to generate their own graph. No database, no server, no setup.
 - **Always fresh, automatically.** Every query rebuilds the graph against the working tree first — structural, `$0`, ~3ms when nothing moved — so `ask`/`grep`/`callers`/`skeleton`/`map` describe the code as it is right now, including uncommitted edits. `graft check` is a local freshness signal; there's no stale index to babysit.
-- **Your provider, your key, your model.** Summaries are written by any provider you choose — OpenAI, Anthropic (native), OpenRouter, Fireworks, Groq, OrcaRouter, a LiteLLM proxy, or a local model — under your own key. The structural code graph (`graft build`, `graft check`) is deterministic tree-sitter and never calls a model at all.
+- **Your provider, your key, your model.** Summaries are written by any provider you choose — OpenAI, Anthropic (native), OpenRouter, Fireworks, Groq, OrcaRouter, a LiteLLM proxy, or a local model — under your own key. The structural code/document graph (`graft build`, `graft check`) is deterministic and never calls a model at all.
 
 <p align="center">
   <picture>
@@ -184,13 +184,13 @@ Every pass is cached by content hash — the LLM ones and the tree-sitter parse 
 
 That cheapness is what lets **every query refresh the graph before it answers**. A retrieval call stats the tree against the last build's fingerprint (~3ms), and rebuilds only if something moved — so `ask`/`grep`/`callers`/`skeleton`/`map` describe the code as it is right now, including edits that are unsaved to git: uncommitted, unstaged, or staged all look the same to graft. Git determines the visible file set; freshness compares the working-tree bytes rather than commit or index state. The refresh is structural and `$0`; it never calls the LLM. Turn it off per-command with `--no-refresh`, or everywhere with `GRAFT_NO_REFRESH=1`.
 
-Alongside the markdown graph, `graft build` builds `graft/.graph/wiring.json` — a per-symbol code graph — plus a per-file wiring card mirroring your source tree. Tier 1 is pure tree-sitter (every function, class, and call edge; deterministic, no model, no network), which is why plain `graft build` needs no key. The `--deep` pass adds a one-line summary and a crux excerpt per symbol, cached by body hash.
+Alongside the markdown graph, `graft build` builds `graft/.graph/wiring.json` — a structural code/document graph — plus a per-file wiring card mirroring your source tree. Code goes through tree-sitter; Markdown becomes searchable document nodes whose local links are edges. The deterministic Tier 1 needs no model or network. The `--deep` pass adds summaries and crux excerpts, cached by body hash.
 
 ---
 
 ## Supported languages
 
-Graft parses with tree-sitter at two levels of fidelity, plus an optional
+Graft parses code with tree-sitter at two levels of fidelity, plus an optional
 compiler-grade layer — all `$0` and deterministic (no model, no key):
 
 - **Full-fidelity** — hand-written extractors with scope-aware, cross-file call
@@ -212,8 +212,11 @@ compiler-grade layer — all `$0` and deterministic (no model, no key):
   **gopls** (Go), **pyright** (Python), **typescript-language-server** (TS/JS).
   It's best-effort — with no server installed the graph is unchanged.
 
-Twenty-three languages in total. A file whose language isn't listed is skipped, not
-indexed. Adding a broad-tier language is a small contribution — see
+- **Documentation** — Markdown (`.md`, `.markdown`) files become searchable file
+  nodes, and local Markdown links become graph edges. No model is required.
+
+Twenty-three code languages plus Markdown documentation. Any other file type is skipped,
+not indexed. Adding a broad-tier language is a small contribution — see
 [CREDITS.md](CREDITS.md) for the folks who added the current set.
 
 ---
@@ -335,7 +338,7 @@ Where a CLI agent supports user-level `hooks.json`, `init` also installs Graft's
 ## CLI
 
 ```bash
-graft build [dir]                    # build graft/ from the code at [dir]: wiring graph + per-file cards (no LLM, no key)
+graft build [dir]                    # build graft/ from code + Markdown: wiring graph + per-file cards (no LLM, no key)
 graft build --deep                   # add the LLM layer: concept nodes + per-symbol summary/crux (cached)
 graft build --extensions .ts .py     # only include these code extensions
 graft build --no-reuse               # re-parse every file instead of replaying unchanged ones from cache
@@ -493,7 +496,7 @@ server; the viewer ships prebuilt inside the package.
 
 - **Context** tab — the architecture graph from `graft/*.md`. Nodes colored by
   type, sized by connectedness.
-- **Code** tab — the per-symbol graph from `graft/.graph/wiring.json` (run `graft build` first).
+- **Code** tab — the structural code/document graph from `graft/.graph/wiring.json` (run `graft build` first).
 - **Outline** tab — the file → class → method hierarchy as a collapsible tree.
 
 Edges speak the code's language. Every link is one of a closed set of verbs, each
