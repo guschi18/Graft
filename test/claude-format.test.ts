@@ -6,7 +6,7 @@ import { emptyStats } from '../src/claude/state.js';
 const strip = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '');
 
 test('not-built state', () => {
-  const lines = renderStatusline(null, null, { ctxPct: null });
+  const lines = renderStatusline(null, null);
   assert.match(strip(lines[0]), /not built/);
   assert.match(strip(lines[0]), /graft build/);
 });
@@ -15,29 +15,29 @@ test('empty graph (0 nodes) is built, not "not built"', () => {
   // A successful `graft build` on a docs-only repo writes a real graph with
   // zero symbols. nodeCount === 0 must not be treated as "never built".
   const stats = { ...emptyStats(), nodeCount: 0, edgeCount: 0 };
-  const line = strip(renderStatusline(stats, null, { ctxPct: null })[0]);
+  const line = strip(renderStatusline(stats, null)[0]);
   assert.doesNotMatch(line, /not built/);
   assert.doesNotMatch(line, /graft build/);
   assert.match(line, /0 nodes \/ 0 edges/);
   assert.match(line, /✓ synced/);
 });
 
-test('two-line bar: size + freshness + ctx + last', () => {
+test('two-line bar: size + freshness + last, no ctx', () => {
   const stats = { ...emptyStats(), nodeCount: 319, edgeCount: 730, totalCount: 319, readyCount: 0,
     dirty: true, staleCount: 4, lastFile: 'pkce.ts' };
-  const lines = renderStatusline(stats, null, { ctxPct: 34 }).map(strip);
+  const lines = renderStatusline(stats, null).map(strip);
   assert.match(lines[0], /graft/);
   assert.match(lines[0], /319 nodes \/ 730 edges/);
   assert.doesNotMatch(lines[0], /enriched/); // enriched segment removed from the bar
   assert.match(lines[0], /⚠ 4 stale/);
-  assert.match(lines[1], /ctx 34%/);
   assert.match(lines[1], /last: pkce\.ts/);
+  assert.doesNotMatch(lines.join('\n'), /\bctx\b/);
 });
 
 test('syncing overrides stale; synced when clean', () => {
   const base = { ...emptyStats(), nodeCount: 1, edgeCount: 0, totalCount: 1 };
-  assert.match(strip(renderStatusline({ ...base, syncing: true, dirty: true }, null, { ctxPct: null })[0]), /syncing/);
-  assert.match(strip(renderStatusline(base, null, { ctxPct: null })[0]), /✓ synced/);
+  assert.match(strip(renderStatusline({ ...base, syncing: true, dirty: true }, null)[0]), /syncing/);
+  assert.match(strip(renderStatusline(base, null)[0]), /✓ synced/);
 });
 
 const wiring2 = {
@@ -215,7 +215,7 @@ test('renderSubagent without a query still shows the agent', () => {
 test('renderStatusline carries the dollar value once the session has been billed', () => {
   const stats = { ...emptyStats(), nodeCount: 1, edgeCount: 0, totalCount: 1 };
   const s = { ...freshSession(), savedTokens: 100_000, inputCostMicros: 600_000, inputTokensBilled: 1_000_000 };
-  const line = strip(renderStatusline(stats, s as any, { ctxPct: null })[0]);
+  const line = strip(renderStatusline(stats, s as any)[0]);
   assert.match(line, /~100,000 tok saved · ~\$0\.06/);
 });
 
@@ -224,7 +224,7 @@ test('renderStatusline shows tokens alone until a turn has been billed', () => {
   // transcript. Tokens are still true; a price nobody measured is not.
   const stats = { ...emptyStats(), nodeCount: 1, edgeCount: 0, totalCount: 1 };
   const s = { ...freshSession(), savedTokens: 100_000 };
-  const line = strip(renderStatusline(stats, s as any, { ctxPct: null })[0]);
+  const line = strip(renderStatusline(stats, s as any)[0]);
   assert.match(line, /~100,000 tok saved/);
   assert.doesNotMatch(line, /\$/);
 });

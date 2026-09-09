@@ -25,7 +25,6 @@ export function freshnessSegment(s: Stats): string {
 export function renderStatusline(
   stats: Stats | null,
   session: SessionState | null,
-  ctx: { ctxPct: number | null },
 ): string[] {
   if (!stats) {
     return [C.muted('◤ graft · not built · run ') + C.text('graft build')];
@@ -43,7 +42,6 @@ export function renderStatusline(
   }
 
   const bottom: string[] = [];
-  if (typeof ctx.ctxPct === 'number') bottom.push(C.text(`ctx ${ctx.ctxPct}%`));
   if (stats.lastFile) bottom.push(C.muted('last: ') + C.text(basename(stats.lastFile)));
 
   const lines = [top.join(SEP)];

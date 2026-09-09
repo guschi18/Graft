@@ -29,7 +29,5 @@ export function main(): void {
   const agent = input?.agent?.name;
   if (agent) { process.stdout.write(renderSubagent(agent, session)); return; }
   const stats = resolveStats(dir);
-  const raw = input?.context_window?.used_percentage;
-  const ctxPct = typeof raw === 'number' ? Math.round(raw) : null;
-  process.stdout.write(renderStatusline(stats, session, { ctxPct }).join('\n'));
+  process.stdout.write(renderStatusline(stats, session).join('\n'));
 }
