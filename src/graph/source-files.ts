@@ -47,9 +47,9 @@ export function unsupportedExtensions(exts: string[]): string[] {
  * saved those choices.
  */
 /** Keep only files whose repo-relative path is at or under one of `onlyDirs`.
- * No-op when `onlyDirs` is empty/absent. The whitelist is carried in the graph
- * itself (the fingerprint records it at build time), never in the source repo,
- * so a build and the query-path freshness probe read the identical set. */
+ * No-op when `onlyDirs` is empty/absent. The whitelist is persisted in
+ * `.graft/config.json` and recorded in the fingerprint at build time, so a build
+ * and the query-path freshness probe read the identical set. */
 export function filterByOnlyDirs(
   files: string[],
   root: string,

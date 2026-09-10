@@ -102,6 +102,11 @@ export interface BuildConfig {
    * checkout someone parked in the tree. Absent/false keeps the historical
    * boundary. */
   followNestedRepos?: boolean;
+  /** `--only-dir` whitelist: repo-relative prefixes, persisted so a LATER no-flag
+   * build and the hooks/refresh path index the same limited set. Absent = the
+   * whole tree (the default every repo that never opted in keeps); `[]` = a
+   * deliberate `--all-dirs`. */
+  onlyDirs?: string[];
 }
 
 /** Local, Git-ignored repository configuration. Kept outside generated
@@ -157,6 +162,15 @@ export function readFollowSubmodules(d: string): boolean {
 /** Missing and explicit false both retain the backwards-compatible default. */
 export function readFollowNestedRepos(d: string): boolean {
   return readBuildConfig(d)?.followNestedRepos === true;
+}
+
+/** The persisted `--only-dir` whitelist for repo `d`: `undefined` when nothing
+ * was ever persisted (today's default: the whole tree), `[]` after `--all-dirs`
+ * — a deliberate full tree that must also override any list an older build left
+ * in the fingerprint. */
+export function readOnlyDirs(d: string): string[] | undefined {
+  const dirs = readBuildConfig(d)?.onlyDirs;
+  return Array.isArray(dirs) ? dirs : undefined;
 }
 // Best-effort read-modify-write; not atomic across concurrent processes, but acceptable
 // for episodic hook writes (worst case is a lost update, not corruption).

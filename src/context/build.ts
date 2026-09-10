@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from "
 import { join, resolve } from "node:path";
 import { walkDir } from "../ingest/fs.js";
 import { filterByOnlyDirs } from "../graph/source-files.js";
-import { readFingerprint } from "../graph/fingerprint.js";
+import { resolveOnlyDirs } from "../graph/fingerprint.js";
 import { contentHash } from "../util/id.js";
 import { relPosix } from "../util/paths.js";
 import { readSourceFile } from "../util/source.js";
@@ -93,13 +93,6 @@ export interface BuildResult {
   fatal?: string;
 }
 
-/** CLI/API `--only-dir` wins; otherwise the whitelist recorded in the graph
- * fingerprint — the same source `checkGraph` / `probeDrift` use, so a later
- * `--deep` without the flag still skips files the wiring pass excluded. */
-function resolveOnlyDirs(outDir: string, explicit?: readonly string[]): Set<string> | undefined {
-  const list = explicit && explicit.length > 0 ? explicit : (readFingerprint(outDir)?.onlyDirs ?? []);
-  return list.length > 0 ? new Set(list) : undefined;
-}
 
 /**
  * Files the concept pass summarizes (and `checkContext` re-hashes): the same
@@ -119,7 +112,11 @@ export function listContextFiles(
   })
     .filter((f) => exts.some((e) => f.toLowerCase().endsWith(e)))
     .filter((f) => !f.startsWith(outDir));
-  return filterByOnlyDirs(walked, root, resolveOnlyDirs(outDir, explicitOnlyDirs));
+  // `--only-dir` wins, then the repo's persisted whitelist, then the one the graph
+  // fingerprint recorded — the same order the wiring build uses, so a later
+  // `--deep` without the flag still skips files the wiring pass excluded.
+  const onlyDirs = resolveOnlyDirs(root, outDir, explicitOnlyDirs);
+  return filterByOnlyDirs(walked, root, onlyDirs ? new Set(onlyDirs) : undefined);
 }
 
 /** The gitignored LLM-call cache: per-file summaries + per-batch synthesis. */
