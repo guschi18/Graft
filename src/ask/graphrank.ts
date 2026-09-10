@@ -57,6 +57,42 @@ const link = (adjacency: Map<string, string[]>, source: string, target: string):
   else adjacency.set(source, [target]);
 };
 
+/** A Markdown document counts as a catalog once it links at least this many
+ * documents AND at least this share of all Markdown documents in the graph. */
+const CATALOG_MIN_LINKS = 50;
+const CATALOG_SHARE = 0.5;
+
+/**
+ * Markdown catalogs — an index or map-of-content page that links most of the
+ * vault (`wiki/index.md`). In an undirected walk such a page neighbours every
+ * seed, so it soaks up mass from whatever the query matched and floats into the
+ * top hits of every question. It carries no topical signal, so it sits out the
+ * walk: its edges are dropped from the topology (it may still seed as a lexical
+ * match). `graft callers` reads edges directly and keeps them.
+ */
+export function markdownCatalogs(graph: GraphV1): Set<string> {
+  return catalogsIn(graph.nodes, graph.edges);
+}
+
+/** {@link markdownCatalogs} over already-read node/edge lists, so the topology
+ * builders keep reading the graph exactly once. */
+function catalogsIn(nodes: GraphV1["nodes"], edges: GraphV1["edges"]): Set<string> {
+  const isDoc = (id: string) => /\.(?:md|markdown)$/i.test(id);
+  const docs = new Set(nodes.filter((n) => n.kind === "file" && isDoc(n.id)).map((n) => n.id));
+  const threshold = Math.max(CATALOG_MIN_LINKS, CATALOG_SHARE * docs.size);
+  const linked = new Map<string, Set<string>>();
+  for (const edge of edges) {
+    if (edge.relation !== "imports" || edge.source === edge.target) continue;
+    if (!docs.has(edge.source) || !docs.has(edge.target)) continue;
+    const targets = linked.get(edge.source);
+    if (targets) targets.add(edge.target);
+    else linked.set(edge.source, new Set([edge.target]));
+  }
+  const out = new Set<string>();
+  for (const [id, targets] of linked) if (targets.size >= threshold) out.add(id);
+  return out;
+}
+
 /** Build independent PageRank topologies in one node pass and one edge pass.
  * Edges crossing partitions are excluded, exactly like applying a nodeFilter
  * for each partition independently. Returning `undefined` omits a node. */
@@ -67,7 +103,9 @@ export function preparePageRankPartitions(
   const partitionById = new Map<string, string>();
   const mutable = new Map<string, MutablePageRankTopology>();
 
-  for (const node of graph.nodes) {
+  const nodes = graph.nodes;
+  const edges = graph.edges;
+  for (const node of nodes) {
     const partition = partitionOfId(node.id);
     if (partition === undefined) continue;
     partitionById.set(node.id, partition);
@@ -76,8 +114,10 @@ export function preparePageRankPartitions(
     else mutable.set(partition, { ids: new Set([node.id]), adjacency: new Map() });
   }
 
-  for (const edge of graph.edges) {
+  const catalogs = catalogsIn(nodes, edges);
+  for (const edge of edges) {
     if (!WALK_RELATIONS.has(edge.relation)) continue;
+    if (catalogs.has(edge.source) || catalogs.has(edge.target)) continue;
     const partition = partitionById.get(edge.source);
     if (partition === undefined || partitionById.get(edge.target) !== partition) continue;
     const topology = mutable.get(partition)!;
@@ -94,15 +134,19 @@ export function preparePageRankTopology(
   graph: GraphV1,
   nodeFilter?: (id: string) => boolean,
 ): PageRankTopology {
+  const nodes = graph.nodes;
   const ids = new Set(
-    graph.nodes.map((node) => node.id).filter((id) => !nodeFilter || nodeFilter(id)),
+    nodes.map((node) => node.id).filter((id) => !nodeFilter || nodeFilter(id)),
   );
   if (ids.size === 0) return emptyTopology();
 
   const adjacency = new Map<string, string[]>();
-  for (const edge of graph.edges) {
+  const edges = graph.edges;
+  const catalogs = catalogsIn(nodes, edges);
+  for (const edge of edges) {
     if (!WALK_RELATIONS.has(edge.relation)) continue;
     if (!ids.has(edge.source) || !ids.has(edge.target)) continue;
+    if (catalogs.has(edge.source) || catalogs.has(edge.target)) continue;
     link(adjacency, edge.source, edge.target);
     link(adjacency, edge.target, edge.source);
   }
