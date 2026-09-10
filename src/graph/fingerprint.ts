@@ -22,7 +22,7 @@ import { join } from "node:path";
 import { CACHE_DIR } from "../context/node-file.js";
 import { contentHash } from "../util/id.js";
 import { readSourceFile } from "../util/source.js";
-import { readJson, writeJsonAtomic } from "../util/state.js";
+import { readJson, readOnlyDirs, writeJsonAtomic } from "../util/state.js";
 import { extractorStamp, pruneSidecars, type ExtractEntry } from "./extract-cache.js";
 import { listSourceStats } from "./source-files.js";
 
@@ -50,10 +50,27 @@ export interface Fingerprint {
   extractor: string;
   files: Record<string, Print>;
   /** Repo-relative directory prefixes this build was limited to (`--only-dir`).
-   * Absent = full tree. Recorded here — not in the source repo's `.graft/config.json`
-   * — so the query-path freshness probe (which never sees a CLI flag) enumerates the
-   * identical whitelisted set and excluded files are never phantom "added" drift. */
+   * Absent = full tree. The repo's choice is persisted in `.graft/config.json`
+   * (see {@link resolveOnlyDirs}); recording what was actually built here keeps the
+   * query-path freshness probe (which never sees a CLI flag) enumerating the
+   * identical whitelisted set, so excluded files are never phantom "added" drift. */
   onlyDirs?: string[];
+}
+
+/** The whitelist a build applies, as repo-relative prefixes; `undefined` = the
+ * whole tree. An explicit `--only-dir` wins; then the repo's persisted choice in
+ * `.graft/config.json` (an empty list there is a deliberate `--all-dirs`, not
+ * "unset"); then the list the last build recorded in the fingerprint, so graphs
+ * built before the choice was persisted keep their limited set. A repo that never
+ * used `--only-dir` has none of the three and is indexed whole, exactly as before. */
+export function resolveOnlyDirs(
+  root: string,
+  outDir: string,
+  explicit?: readonly string[],
+): string[] | undefined {
+  if (explicit && explicit.length > 0) return [...explicit];
+  const list = readOnlyDirs(root) ?? readFingerprint(outDir)?.onlyDirs ?? [];
+  return list.length > 0 ? [...list] : undefined;
 }
 
 /** What moved since the last build. Empty in all three arrays = nothing to do. */

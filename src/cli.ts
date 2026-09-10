@@ -343,6 +343,10 @@ program
     (val: string, prev: string[]) => [...prev, val],
     [] as string[],
   )
+  .option(
+    "--all-dirs",
+    "lift a persisted --only-dir whitelist and index the whole tree again (persisted like --only-dir)",
+  )
   .option("--no-gitignore", "skip writing graft/ into .gitignore (same as GRAFT_NO_GITIGNORE=1)")
   .option("--no-ignore", "skip writing .ignore for ripgrep re-admit (same as GRAFT_NO_IGNORE=1)")
   .action(async (
@@ -356,6 +360,7 @@ program
       allowPartial?: boolean;
       includeDir?: string[];
       onlyDir?: string[];
+      allDirs?: boolean;
       followSubmodules?: boolean;
       followNestedRepos?: boolean;
       gitignore?: boolean;
@@ -394,10 +399,16 @@ program
       }
       buildConfigPatch.includeDirs = opts.includeDir;
     }
-    // The whitelist is NOT persisted to `.graft/config.json`: it belongs with the
-    // graph (the fingerprint records it at build time), never in the source repo,
-    // so a `--only-dir` build leaves no trace under the repo being indexed.
+    // The whitelist is persisted to `.graft/config.json` like --include-dir, so a
+    // later no-flag build and the hooks/refresh path keep the same limited set.
+    // Nothing is written unless --only-dir or --all-dirs is given: a repo that
+    // never opts in is indexed whole, exactly as before.
     let onlyDirs: string[] | undefined;
+    if (opts.onlyDir && opts.onlyDir.length > 0 && opts.allDirs) {
+      console.error("✗ --only-dir and --all-dirs are mutually exclusive");
+      process.exit(1);
+    }
+    if (opts.allDirs) buildConfigPatch.onlyDirs = [];
     if (opts.onlyDir && opts.onlyDir.length > 0) {
       // --only-dir takes a repo-relative path prefix, normalized to the same
       // posix, no-`./`, no-trailing-slash form `--in` uses, so the prefix match
@@ -410,6 +421,7 @@ program
         process.exit(1);
       }
       onlyDirs = normalized;
+      buildConfigPatch.onlyDirs = normalized;
     }
     const followSubmodulesWasExplicit = command.getOptionValueSource("followSubmodules") === "cli";
     if (followSubmodulesWasExplicit && typeof opts.followSubmodules === "boolean") {

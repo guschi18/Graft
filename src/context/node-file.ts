@@ -317,6 +317,17 @@ function isRootFileCard(
   return isWiringCardHeading(content);
 }
 
+/** A top-level `.md` that is a per-file wiring card, judged from its own content
+ * alone: no concept `slug`, and either a covers-only card or a `# <file>.<ext>`
+ * heading. Concept nodes and hand-dropped notes never match, so `writeCards` can
+ * prune the ones no live source maps to any more. */
+export function isRootWiringCard(content: string): boolean {
+  const parsed = matter(content);
+  const fm = parsed.data as Record<string, unknown>;
+  if (hasConceptSlug(fm)) return false;
+  return isCoversOnlyFileCard(fm) || isWiringCardHeading(parsed.content);
+}
+
 /** Read and parse every concept-node `.md` in a context dir (skips INDEX.md
  * and root-level per-file cards). */
 export function readNodes(dir: string): ParsedNode[] {

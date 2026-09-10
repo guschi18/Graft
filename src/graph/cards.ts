@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 import { relPosix } from "../util/paths.js";
 import matter from "gray-matter";
 import type { GraphV1, NodeV1 } from "./types.js";
-import { CACHE_DIR, readNodes } from "../context/node-file.js";
+import { CACHE_DIR, isRootWiringCard, readNodes } from "../context/node-file.js";
 import { GRAPH_DIR } from "./write.js";
 
 const INDEX_FILE = "INDEX.md";
@@ -196,6 +196,20 @@ export function writeCards(graph: GraphV1, outDir: string): CardStats {
   for (const existing of listExistingCards(outDir)) {
     if (!written.has(existing)) {
       rmSync(existing);
+      pruned++;
+    }
+  }
+  // Root-level cards share `graft/` with concept nodes, so listExistingCards never
+  // sees them; without this a root source that is deleted, or falls outside an
+  // `--only-dir` whitelist, leaves its card behind for good (and `ask` keeps
+  // surfacing it). Only files that read as wiring cards go — concept nodes (slug)
+  // and hand-dropped notes stay.
+  for (const e of readdirSync(outDir, { withFileTypes: true })) {
+    if (!e.isFile() || !e.name.endsWith(".md") || e.name === INDEX_FILE) continue;
+    const path = join(outDir, e.name);
+    if (written.has(path)) continue;
+    if (isRootWiringCard(readFileSync(path, "utf8"))) {
+      rmSync(path);
       pruned++;
     }
   }
