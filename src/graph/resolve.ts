@@ -128,6 +128,10 @@ export function resolveEdges(
   // node ids. A `use App\Models\User` names a PSR-4 class whose file mirrors the namespace
   // tail under some (unknown) source root, so the suffix is the portable key.
   const phpFilesBySuffix = new Map<string, string[]>();
+  // Obsidian wikilink resolution: a Markdown file's name minus one `.md`, lower-cased
+  // (`wiki/entities/Claude Code.md` → `claude code`) → its file node ids. `[[Claude Code]]`
+  // names a page anywhere in the vault, not a path next to the linking file.
+  const mdByName = new Map<string, string[]>();
   const hasGoModules = !!opts.goModules?.length;
   for (const n of nodes) {
     if (n.kind === "file") {
@@ -150,6 +154,7 @@ export function resolveEdges(
         const parts = toPosixPath(n.path).split("/");
         for (let i = 0; i < parts.length; i++) push(phpFilesBySuffix, parts.slice(i).join("/"), n.id);
       }
+      if (MD_EXT.test(n.path)) push(mdByName, posix.basename(markdownStem(n.path)), n.id);
       {
         const p = toPosixPath(n.path);
         if (p === "lib.rs" || p === "main.rs") rustCrateRoots.push("");
@@ -206,8 +211,8 @@ export function resolveEdges(
       add(e.source, e.targetId, "contains", "extracted");
     } else if (e.relation === "imports" && e.specifier) {
       const target =
-        /\.(?:md|markdown)$/i.test(e.file)
-          ? resolveMarkdownLink(e.specifier, e.file, byId)
+        MD_EXT.test(e.file)
+          ? resolveMarkdownLink(e.specifier, e.file, byId, e.wikilink, mdByName)
           : hasGoModules && e.file.endsWith(".go")
             ? resolveGoImport(e.specifier, opts.goModules!, goFilesByDir)
             : e.file.endsWith(".java")
@@ -509,15 +514,69 @@ function resolveImport(spec: string, file: string, byId: Map<string, NodeV1>): s
   return spec;
 }
 
-/** Resolve a Markdown link to a document/file node, including extensionless links. */
-function resolveMarkdownLink(spec: string, file: string, byId: Map<string, NodeV1>): string {
+const MD_EXT = /\.(?:md|markdown)$/i;
+
+/** A Markdown path lower-cased with one `.md`/`.markdown` dropped: `Wiki/CLAUDE.md.md` → `wiki/claude.md`. */
+function markdownStem(path: string): string {
+  return toPosixPath(path).toLowerCase().replace(MD_EXT, "");
+}
+
+/** Resolve a Markdown link to a document/file node, including extensionless links.
+ * A wikilink that misses relative to its file falls back to the vault-wide name
+ * lookup of {@link resolveWikilinkByName}. */
+function resolveMarkdownLink(
+  spec: string,
+  file: string,
+  byId: Map<string, NodeV1>,
+  wikilink?: string,
+  mdByName?: Map<string, string[]>,
+): string {
   const base = spec.startsWith("/")
     ? posix.normalize(spec.slice(1))
     : posix.normalize(posix.join(posix.dirname(toPosixPath(file)), spec));
   for (const candidate of [base, `${base}.md`, `${base}.markdown`, `${base}/README.md`]) {
     if (byId.has(candidate)) return candidate;
   }
-  return spec;
+  return (wikilink && mdByName && resolveWikilinkByName(wikilink, file, mdByName)) || spec;
+}
+
+/**
+ * Obsidian semantics for `[[Name]]`: the link names a file anywhere in the vault,
+ * case-insensitively. The text is tried verbatim first (`[[CLAUDE.md]]` →
+ * `CLAUDE.md.md`, a vault whose filenames equal the link text) and then with a
+ * trailing `.md` dropped (`[[CLAUDE.md]]` → `CLAUDE.md`). A path-shaped link
+ * (`[[entities/Name]]`) only matches files whose path ends with that tail. Among
+ * several matches the linking file's own folder wins, then the shortest path, then
+ * the lexicographically first, so the result is deterministic.
+ */
+function resolveWikilinkByName(link: string, file: string, mdByName: Map<string, string[]>): string | null {
+  const text = toPosixPath(link.trim()).replace(/^(?:\.\.?\/|\/)+/, "").toLowerCase();
+  const keys = [text];
+  const stripped = text.replace(MD_EXT, "");
+  if (stripped !== text) keys.push(stripped);
+  const dir = posix.dirname(toPosixPath(file)).toLowerCase();
+  for (const key of keys) {
+    let hits = mdByName.get(posix.basename(key)) ?? [];
+    if (key.includes("/")) {
+      hits = hits.filter((id) => {
+        const stem = markdownStem(id);
+        return stem === key || stem.endsWith(`/${key}`);
+      });
+    }
+    if (hits.length) return closestMarkdown(hits, dir);
+  }
+  return null;
+}
+
+function closestMarkdown(ids: string[], dir: string): string {
+  const rank = (id: string) => (posix.dirname(toPosixPath(id)).toLowerCase() === dir ? 0 : 1);
+  return [...ids].sort(
+    (a, b) =>
+      rank(a) - rank(b) ||
+      a.split("/").length - b.split("/").length ||
+      a.length - b.length ||
+      (a < b ? -1 : a > b ? 1 : 0),
+  )[0];
 }
 
 /**

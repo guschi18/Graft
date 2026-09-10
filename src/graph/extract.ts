@@ -93,6 +93,10 @@ export interface RawEdge {
   file: string; // the file this edge originates in (scopes name resolution)
   targetId?: string; // already-resolved target (contains)
   specifier?: string; // module path to resolve (imports / imported-symbol references)
+  /** Markdown imports only: the raw `[[target]]` text when the link was a wikilink.
+   * Obsidian resolves it by file name anywhere in the vault, not relative to the
+   * linking file, so resolve.ts falls back to a name lookup with it. */
+  wikilink?: string;
   name?: string; // symbol name to resolve (extends/implements/calls)
   viaMember?: boolean; // calls: was it `obj.foo()` (→ prefer method targets)?
   /** calls with viaMember: the receiver's resolved type name (from bindings /

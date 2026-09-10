@@ -27,8 +27,9 @@ function localTarget(raw: string, wiki = false): string | null {
   return target.startsWith(".") || target.startsWith("/") ? target : `./${target}`;
 }
 
-function links(source: string): string[] {
-  const found = new Set<string>();
+/** Local link specifiers, each mapped to its raw wikilink text when any occurrence was a `[[wikilink]]`. */
+function links(source: string): Map<string, string | undefined> {
+  const found = new Map<string, string | undefined>();
   let fence: "`" | "~" | null = null;
   for (const line of source.split(/\r?\n/)) {
     const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1][0] as "`" | "~" | undefined;
@@ -44,14 +45,14 @@ function links(source: string): string[] {
     const prose = line.replace(/`[^`]*`/g, "");
     for (const match of prose.matchAll(/(?<!!)\[[^\]]+\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+["'][^"']*["'])?\s*\)/g)) {
       const target = localTarget(match[1] ?? match[2]);
-      if (target) found.add(target);
+      if (target && !found.has(target)) found.set(target, undefined);
     }
     for (const match of prose.matchAll(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g)) {
       const target = localTarget(match[1], true);
-      if (target) found.add(target);
+      if (target && found.get(target) === undefined) found.set(target, match[1].trim());
     }
   }
-  return [...found];
+  return found;
 }
 
 /** Small deterministic excerpt for cards and the viewer; the full text stays in the ask index. */
@@ -90,11 +91,12 @@ export function extractMarkdown(rel: string, source: string): ExtractResult {
     summary: null,
     crux: null,
   };
-  const rawEdges: RawEdge[] = links(source).map((specifier) => ({
+  const rawEdges: RawEdge[] = [...links(source)].map(([specifier, wikilink]) => ({
     source: rel,
     relation: "imports",
     specifier,
     file: rel,
+    ...(wikilink ? { wikilink } : {}),
   }));
   return { nodes: [node], rawEdges };
 }
